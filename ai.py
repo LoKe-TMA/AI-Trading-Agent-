@@ -1,4 +1,4 @@
-Client
+
 from binance.exceptions import BinanceAPIException
 
 # ==============================================================================
