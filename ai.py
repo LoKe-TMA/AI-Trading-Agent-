@@ -2,7 +2,7 @@ import os
 import json
 import time
 import pandas as pd
-from dotenv import load_dotenv # .env ဖိုင်ကနေ API Keys တွေကို ဖတ်ဖို့
+from dotenv import load_dotenv 
 
 # Binance Library
 from binance.client import Client 
@@ -14,7 +14,6 @@ from google.genai import types
 
 # ==============================================================================
 # --- ၀။ Environment Variables များကို စတင် ဖတ်ခြင်း ---
-# load_dotenv() သည် .env ဖိုင် (Local အတွက်) ကို ဖတ်ပြီး Keys များကို OS Environment ထဲ ထည့်ပေးသည်။
 load_dotenv() 
 
 # --- ၁။ API Keys များကို Environment Variables မှ ဆွဲယူခြင်း ---
@@ -29,25 +28,21 @@ TIMEFRAME = Client.KLINE_INTERVAL_1MINUTE
 LEVERAGE = 10 
 DEMO_CAPITAL = 10 
 POLLING_INTERVAL = 30 # စျေးကွက်ကို စစ်ဆေးမည့် အချိန် (စက္ကန့်)
+GEMINI_MODEL_NAME = 'gemini-2.5-flash' # Model Name ကို Constant အဖြစ် သတ်မှတ်
 # ==============================================================================
 
 # --- ၃။ API Setup နှင့် Connection စစ်ဆေးခြင်း ---
 def setup_apis():
     """Gemini Client နှင့် Binance Testnet Client ကို စတင်ချိတ်ဆက်ခြင်း"""
     
-    # 3.1 Key မရှိရင် စစ်ဆေးခြင်း
     if not all([GEMINI_API_KEY, BINANCE_TESTNET_API_KEY, BINANCE_TESTNET_SECRET_KEY]):
         print("❌ API Keys တွေ မပြည့်စုံပါဘူး။ Environment Variables (သို့မဟုတ် .env) တွေ စစ်ဆေးပေးပါ။")
         return None, None
         
-    # 3.2 Gemini Setup (Error ပြင်ဆင်ပြီး)
+    # 3.2 Gemini Setup
     try:
-        # API Key ကို genai.Client() ထဲ တိုက်ရိုက်ပေးပို့ခြင်း
         gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        # ✅ ပြင်ဆင်ချက်- Model ကို Dictionary-style access ဖြင့် ရယူခြင်း
-        model = gemini_client.models['gemini-2.5-flash']
-        
+        # ⚠️ ပြင်ဆင်ချက်: Model object ကို ရယူခြင်းကို ဖယ်ရှားလိုက်ပါပြီ
         print("✅ Gemini Client Connection Successful.")
     except Exception as e:
         print(f"❌ Gemini API configuration error. Error: {e}")
@@ -62,10 +57,12 @@ def setup_apis():
         print(f"❌ Binance Testnet Connection Error. Error: {e}")
         return None, None
         
-    return model, binance_client
+    # ➡️ gemini_client ကို model နေရာမှာ ပြန်ပို့ပါမည်။
+    return gemini_client, binance_client 
 
 
 # --- ၄။ Agent ညွှန်ကြားချက် (System Prompt) ---
+# (ဤ Function သည် ပြောင်းလဲစရာ မလိုပါ)
 def get_system_prompt(current_position_info):
     """လက်ရှိ Position အခြေအနေပေါ်မူတည်ပြီး Gemini ကို ညွှန်ကြားချက်ပေးခြင်း"""
     
@@ -93,6 +90,7 @@ The required JSON format is:
 """
 
 # --- ၅။ Utility Functions ---
+# (ဤ Functions များသည် ပြောင်းလဲစရာ မလိုပါ)
 def get_binance_data(symbol, timeframe, client, limit=30):
     """Binance Futures Testnet မှ Market Data ရယူခြင်း"""
     try:
@@ -104,7 +102,6 @@ def get_binance_data(symbol, timeframe, client, limit=30):
     except Exception as e:
         print(f"❌ Data Fetching Error: {e}")
         return "Market data unavailable."
-
 
 def get_current_position(symbol, client):
     """လက်ရှိ ဖွင့်ထားသော Position ကို စစ်ဆေးခြင်း"""
@@ -181,7 +178,8 @@ def execute_trade(action, symbol, amount_usd, leverage, client, current_position
     return None
 
 # --- ၆။ Main Trading Loop ---
-def trading_loop(model, binance_client):
+# ⚠️ ပြင်ဆင်ချက်: model အစား gemini_client ကို လက်ခံပါမည်။
+def trading_loop(gemini_client, binance_client): 
     print("🚀 Gemini Crypto Demo Trading Agent စတင်ပါပြီ။")
     print(f"Demo အတွက်: {SYMBOL} | ရင်းနှီးငွေ: ${DEMO_CAPITAL} | စစ်ဆေးမှုနှုန်း: {POLLING_INTERVAL} စက္ကန့်")
     
@@ -203,9 +201,10 @@ def trading_loop(model, binance_client):
             
             print("-> Gemini ကို ခွဲခြမ်းစိတ်ဖြာရန် ပို့နေသည်...")
             
-            # Gemini ကို ခေါ်ဆိုခြင်း
-            response = model.generate_content(
-                full_prompt,
+            # ⚠️ ပြင်ဆင်ချက်: client.models.generate_content ကို ခေါ်ဆိုပြီး model ကို တိုက်ရိုက် String အနေနဲ့ ပေးခြင်း
+            response = gemini_client.models.generate_content(
+                model=GEMINI_MODEL_NAME, # <--- Model Name ကို String အနေနဲ့ ပေးပို့ခြင်း
+                contents=full_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     response_mime_type="application/json",
@@ -250,9 +249,10 @@ def trading_loop(model, binance_client):
 
 if __name__ == "__main__":
     # API များကို စတင် Setup လုပ်ခြင်း
-    model, binance_client = setup_apis()
+    # ⚠️ ပြင်ဆင်ချက်: model အစား gemini_client ကို လက်ခံရန် ပြင်ဆင်ခြင်း
+    gemini_client, binance_client = setup_apis() 
     
-    if model and binance_client:
-        trading_loop(model, binance_client)
+    if gemini_client and binance_client: # gemini_client ကို စစ်ဆေးခြင်း
+        trading_loop(gemini_client, binance_client) # client ကို ပို့ပေးခြင်း
     else:
         print("Agent စတင်ရန် မအောင်မြင်ပါ။ API Setup အား စစ်ဆေးပါ။")
