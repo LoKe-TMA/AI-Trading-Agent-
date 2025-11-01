@@ -1,4 +1,4 @@
-puthon
+python
 google-genai
 python-binance
 pandas
